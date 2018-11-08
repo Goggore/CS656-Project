@@ -1,5 +1,6 @@
 /* Comment block
-   CS656-005 Group W6 Su (ss3889), Chih-Yun (cc785), Shang-Yung (sh555), Ge (gg345), Quzhi (ql247)
+   CS656-005 Group W6
+   Su (ss3889), Chih-Yun (cc785), Shang-Yung (sh555), Ge (gg345), Quzhi (ql247)
 */
 
 #include <stdio.h>
