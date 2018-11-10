@@ -80,9 +80,48 @@ struct sockaddr_in * Dns(int acpt, char* addr)
 }
 
 //Scan and parse the browser request
-void doParse(char* req, char* hostName)
+int doParse(char* req, char* hostName, char* URL)
 {
+	int getHostStart = -1, getURLStart = -1;
+	int bufferRealSize = 0;
 
+	//Get real size of data
+	for (bufferRealSize; bufferRealSize < sizeof(req); bufferRealSize++)
+	{
+		//Get URL
+		if (bufferRealSize > 3 &&
+			req[bufferRealSize - 4] == 'G' && req[bufferRealSize - 3] == 'E' && 
+			req[bufferRealSize - 2] == 'T' && req[bufferRealSize - 1] == ' ')
+			getURLStart = 1;
+
+		if (getURLStart > 0)
+		{
+			strcat(URL, req[bufferRealSize]);
+			if (req[bufferRealSize] == ' ')
+			{
+				getURLStart = -1;
+				strcat(URL, '\0');
+			}
+		}
+
+		//Get Host
+		if (bufferRealSize > 5 &&
+			req[bufferRealSize - 6] == 'H' && req[bufferRealSize - 5] == 'o' && req[bufferRealSize - 4] == 's' &&
+			req[bufferRealSize - 3] == 't' && req[bufferRealSize - 2] == ':' && req[bufferRealSize - 1] == ' ')
+			getHostStart = 1;
+
+		if (getHostStart > 0)
+		{
+			strcat(hostName, req[bufferRealSize]);
+			if (req[bufferRealSize] == '\r' || req[bufferRealSize] == ':')
+				getHostStart = -1;
+		}
+
+		if (buffer[bufferRealSize] == '\0')
+			break;
+	}
+
+	return bufferRealSize;
 }
 
 //Transfer data
@@ -115,7 +154,7 @@ int main(int argc, char **argv)
 	if (listen(sockfd,3) < 0)
 		exit(1);
 
-	printf("Proxy Server Listening on Socket %s \n", argv[1]);
+	printf("stage 2 program by ss3889 listening on socket %s \n", argv[1]);
 		
 	while(1)
 	{	
@@ -125,178 +164,21 @@ int main(int argc, char **argv)
 			exit(1);
 
 		//Receive message from client
-		char buffer[2048] = "";
+		char reqBuff[2048] = "";
+		char URL[256] = "";
+		char host[128] = "";
 		int bufferRealSize = 0;
 
-		recv(acpt, buffer, sizeof(buffer), 0);
+		recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
-		//Get real size of data
-		for (bufferRealSize; bufferRealSize < sizeof(buffer); bufferRealSize++)
-			if (buffer[bufferRealSize] == '\0')
-				break;
-
-		//Get URL from request message
-		char URL[256] = "";
-		int i = 0;
-		for (i; i < bufferRealSize; i++)
-		{
-			if (buffer[i] == ' ')
-			{
-				i++;
-				int j = 0;
-				while (buffer[i] != ' ')
-				{
-					URL[j] = buffer[i];
-					j++;
-					i++;
-				}
-				URL[j + 1] = '\0';
-				break;
-			}
-		}
+		doParse(reqBuff, )
 
 		char localMsg[256] = "REQ ";
 		strcat(localMsg, URL);
 		printf("%s \n", localMsg);
 
-		if (bufferRealSize > 0)
-		{
-			//Get the message without null char
-			char* realBuffer;
-			realBuffer = (char*)malloc(sizeof(char) * bufferRealSize);
-			int i = 0;
-			for (i; i < bufferRealSize; i++)
-				realBuffer[i] = buffer[i];
-
-			realBuffer[bufferRealSize - 1] = '\0';
-
-			//Build HTTP response message header
-			char clientMsg[8192] = "HTTP/1.1 200 OK \r\n";
-			time_t currentT;
-			time(&currentT);
-			strcat(clientMsg, "Date: ");
-			strcat(clientMsg, asctime(gmtime(&currentT)));
-			strcat(clientMsg, "GMT \r\n");
-			strcat(clientMsg, "Content-Type: text/html;charset=ISO-8859-1 \r\n");
-			strcat(clientMsg, "Content-Length: 2048 \r\n");
-			strcat(clientMsg, "\r\n");
-
-			//Build HTTP response message data
-			strcat(clientMsg, "<html>");
-			strcat(clientMsg, "<head><title>CS656-005 W6 NW2 Pre-submit</title><head>");
-			strcat(clientMsg, "<body><p>");
-
-			//Get host name and add <br> at the end of every line
-			i = 0;
-			int hostStart = 0, hostEnd = 0;
-			int getHostStart = -1;
-			for (i; i < bufferRealSize; i++)
-			{
-				if (realBuffer[i] == '\n')
-					strcat(clientMsg, "<br>");
-				else
-					strncat(clientMsg, &realBuffer[i], sizeof(char));
-
-				if (i > 5 &&
-					realBuffer[i - 6] == 'H' &&
-					realBuffer[i - 5] == 'o' &&
-					realBuffer[i - 4] == 's' &&
-					realBuffer[i - 3] == 't' &&
-					realBuffer[i - 2] == ':' &&
-					realBuffer[i - 1] == ' ')
-				{
-					getHostStart = 1;
-					hostStart = i;
-				}
-
-				if (getHostStart > 0 && realBuffer[i] == '\n')
-				{
-					getHostStart = -1;
-					hostEnd = i - 2;
-				}
-				else if (getHostStart > 0 && realBuffer[i] == ':')
-				{
-					getHostStart = -1;
-					hostEnd = i - 1;
-				}
-
-			}
-
-			//Add hostip to message
-			strcat(clientMsg, "HOSTIP = ");
-			char* hostName;
-			hostName = (char*)malloc(sizeof(char) * (hostEnd - hostStart + 1));
-			i = hostStart;
-			int j = 0;
-			for (i; i <= hostEnd; i++)
-			{
-				strncat(clientMsg, &realBuffer[i], sizeof(char));
-				hostName[j] = realBuffer[i];
-				j++;
-			}
-			hostName[hostEnd - hostStart + 1] = '\0';
-
-			struct sockaddr_in* pIP = Dns(acpt, hostName);
-			strcat(clientMsg, " (");
-			strcat(clientMsg, inet_ntoa(pIP->sin_addr));
-			strcat(clientMsg, ")");
-			strcat(clientMsg, "<br>");
-
-			//add hostport to message
-			strcat(clientMsg, "PORT = ");
-			char portNo[5] = "0";
-			if (URL[0] == 'h' &&
-				URL[1] == 't' &&
-				URL[2] == 't' &&
-				URL[3] == 'p')
-			{
-				portNo[0] = '8';
-				portNo[1] = '0';
-			}
-			else if (URL[0] == 'h' &&
-				URL[1] == 't' &&
-				URL[2] == 't' &&
-				URL[3] == 'p' &&
-				URL[3] == 's')
-			{
-				portNo[0] = '4';
-				portNo[1] = '4';
-				portNo[2] = '3';
-			}
-
-			strcat(clientMsg, portNo);
-			strcat(clientMsg, "<br>");
-
-			//add path to message
-			strcat(clientMsg, "PATH = ");
-			i = 0;
-			int count = 0;
-			for (i; i < sizeof(localMsg); i++)
-			{
-				if (localMsg[i] == '/')
-					count++;
-
-				if (count == 3)
-				{
-					strcat(clientMsg, &localMsg[i + 1]);
-					break;
-				}
-			}
-			strcat(clientMsg, "<br>");
-
-			strcat(clientMsg, "</p></body>");
-			strcat(clientMsg, "</html>");
-
-			//Send message back to browser
-			if (send(acpt, clientMsg, sizeof(clientMsg), 0) < 0)
-				exit(1);
-
-			free(realBuffer);
-			free(hostName);
-
-			//Close connection
-			close(acpt);
-		}
+		//Close connection
+		close(acpt);
 	}
 	
 	close(sockfd);
