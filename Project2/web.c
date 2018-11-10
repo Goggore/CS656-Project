@@ -90,6 +90,38 @@ void doHTTP()
 {
 
 }
+char* connectWebSever(sockaddr_in *ip, char *addr)
+{
+	//struct sockaddr_in net;
+
+	//net.sin_family = AF_INET;
+    //net.sin_port = htons( 80 );
+    //net.sin_addr.s_addr = inet_addr(addr);
+	//create socket to web server
+	if ((wsock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+	{
+		exit(1)；
+	}
+	if (connect(wsock , (struct sockaddr *)&ip , sizeof(ip)) < 0)
+    {
+    	exit(1);
+    }
+    if( send(wsock, addr, strlen(addr), 0) < 0)
+    {
+    	exit(1);
+    }
+
+    char[65536] Buf;
+    if( recv(sock , Buf , 65536 , 0) < 0)
+    {
+    	exit(1);
+    }    
+    if(Buf[65535] == NULL)
+    {
+    	exit(1);
+    }
+return Buf;
+}
 
 int main(int argc, char **argv)
 {
