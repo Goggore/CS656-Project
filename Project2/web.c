@@ -80,48 +80,56 @@ struct sockaddr_in * Dns(int acpt, char* addr)
 }
 
 //Scan and parse the browser request
-int doParse(char* req, char* hostName, char* URL)
+void doParse(char* req, char* hostName, char* URL, int* buffSize)
 {
-	int getHostStart = -1, getURLStart = -1;
-	int bufferRealSize = 0;
+	int getHostStart = -1, getURL = -1, getURLStart = -1;
 
 	//Get real size of data
-	for (bufferRealSize; bufferRealSize < sizeof(req); bufferRealSize++)
+	while (1)
 	{
-		//Get URL
-		if (bufferRealSize > 3 &&
-			req[bufferRealSize - 4] == 'G' && req[bufferRealSize - 3] == 'E' && 
-			req[bufferRealSize - 2] == 'T' && req[bufferRealSize - 1] == ' ')
-			getURLStart = 1;
+		if (req[buffSize[0]] == '\0')
+			break;
 
+		//GetURL
 		if (getURLStart > 0)
 		{
-			strcat(URL, req[bufferRealSize]);
-			if (req[bufferRealSize] == ' ')
+			if (req[buffSize[0]] != ' ')
 			{
+				strncat(URL, &req[buffSize[0]], sizeof(char));
+				buffSize[2]++;
+			}
+			else
+			{
+				URL[buffSize[2]] = '\0';
+				getURL = 1;
 				getURLStart = -1;
-				strcat(URL, '\0');
 			}
 		}
 
+		if (getURL < 0 && getURLStart < 0 && req[buffSize[0]] == ' ')
+			getURLStart = 1;
+
 		//Get Host
-		if (bufferRealSize > 5 &&
-			req[bufferRealSize - 6] == 'H' && req[bufferRealSize - 5] == 'o' && req[bufferRealSize - 4] == 's' &&
-			req[bufferRealSize - 3] == 't' && req[bufferRealSize - 2] == ':' && req[bufferRealSize - 1] == ' ')
+		if (buffSize[0] > 5 &&
+			req[buffSize[0] - 6] == 'H' && req[buffSize[0] - 5] == 'o' && req[buffSize[0] - 4] == 's' &&
+			req[buffSize[0] - 3] == 't' && req[buffSize[0] - 2] == ':' && req[buffSize[0] - 1] == ' ')
 			getHostStart = 1;
 
 		if (getHostStart > 0)
 		{
-			strcat(hostName, req[bufferRealSize]);
-			if (req[bufferRealSize] == '\r' || req[bufferRealSize] == ':')
+			if (req[buffSize[0]] == '\r' || req[buffSize[0]] == ':')
 				getHostStart = -1;
+			else
+			{
+				strncat(hostName, &req[buffSize[0]], sizeof(char));
+				buffSize[1]++;
+			}
 		}
 
-		if (buffer[bufferRealSize] == '\0')
-			break;
+		buffSize[0]++;
 	}
 
-	return bufferRealSize;
+	return;
 }
 
 //Transfer data
@@ -129,6 +137,7 @@ void doHTTP()
 {
 
 }
+/**
 char* connectWebSever(sockaddr_in *ip, char *addr)
 {
 	//struct sockaddr_in net;
@@ -139,7 +148,7 @@ char* connectWebSever(sockaddr_in *ip, char *addr)
 	//create socket to web server
 	if ((wsock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
 	{
-		exit(1)；
+		exit(1);
 	}
 	if (connect(wsock , (struct sockaddr *)&ip , sizeof(ip)) < 0)
     {
@@ -161,6 +170,7 @@ char* connectWebSever(sockaddr_in *ip, char *addr)
     }
 return Buf;
 }
+/**/
 
 int main(int argc, char **argv)
 {
@@ -199,15 +209,19 @@ int main(int argc, char **argv)
 		char reqBuff[2048] = "";
 		char URL[256] = "";
 		char host[128] = "";
-		int bufferRealSize = 0;
+		int bufferSize[3] = {0,0,0};//reqSize, hostSize, urlSize
 
 		recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
-		doParse(reqBuff, )
+		doParse(reqBuff, host, URL, bufferSize);
 
 		char localMsg[256] = "REQ ";
 		strcat(localMsg, URL);
 		printf("%s \n", localMsg);
+
+		char* realHost = (char*)malloc(sizeof(char) * bufferSize[1]);
+		memcpy(realHost, host, sizeof(char) * bufferSize[1]);
+		struct sockaddr_in pIP = Dns(acpt, realHost);
 
 		//Close connection
 		close(acpt);
