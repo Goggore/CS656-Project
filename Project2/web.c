@@ -133,7 +133,7 @@ void doParse(char* req, char* hostName, char* URL, int* buffSize)
 }
 
 //Transfer data
-void doHTTP()
+void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in wServ, char* req)
 {
 
 }
@@ -205,23 +205,33 @@ int main(int argc, char **argv)
 		if (acpt < 0)
 			exit(1);
 
-		//Receive message from client
+		//init buffers
 		char reqBuff[2048] = "";
 		char URL[256] = "";
 		char host[128] = "";
 		int bufferSize[3] = {0,0,0};//reqSize, hostSize, urlSize
 
+		//Receive message from client
 		recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
+		//parse request
 		doParse(reqBuff, host, URL, bufferSize);
 
 		char localMsg[256] = "REQ ";
 		strcat(localMsg, URL);
 		printf("%s \n", localMsg);
 
+		//build buffer with real size
 		char* realHost = (char*)malloc(sizeof(char) * bufferSize[1]);
+		char* realReq = (char*)malloc(sizeof(char) * bufferSize[0]);
 		memcpy(realHost, host, sizeof(char) * bufferSize[1]);
-		struct sockaddr_in pIP = Dns(acpt, realHost);
+		memcpy(realReq, reqBuff, sizeof(char) * bufferSize[0]);
+
+		//get prefered IP
+		struct sockaddr_in* desIP = Dns(acpt, realHost);
+
+		//transform data
+		doHTTP(client, server, &desIP, realReq);
 
 		//Close connection
 		close(acpt);
