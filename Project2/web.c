@@ -26,7 +26,7 @@ int GetDelay(struct addrinfo info)
 	//Create socket
 	int sockfd = socket(info.ai_family, info.ai_socktype, info.ai_protocol);
 	if(sockfd < 0)
-        return -1;
+        exit(1);
 	
 	//Connect
 	long long startT = GetTime();
@@ -133,9 +133,20 @@ void doParse(char* req, char* hostName, char* URL, int* buffSize)
 }
 
 //Transfer data
-void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in wServ, char* req)
+void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in wServ, char* req, int reqSize)
 {
+	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0)
+		exit(1);
 
+	if (connect(sockfd, (struct sockaddr*)&wServ, sizeof((struct sockaddr*)&wServ)) < 0)
+	{
+		close(sockfd);
+		exit(1);
+	}
+
+	if (send(sockfd, req, reqSize, 0) < 0)
+		exit(1);
 }
 /**
 char* connectWebSever(sockaddr_in *ip, char *addr)
@@ -189,7 +200,7 @@ int main(int argc, char **argv)
 		exit(1);
 
 	//Bind socket to address and port
-	if (bind(sockfd, (struct sockaddr *)&server, sizeof(struct sockaddr_in)) < 0)
+	if (bind(sockfd, (struct sockaddr*)&server, sizeof(struct sockaddr_in)) < 0)
 		exit(1);
 
 	//Begin to listen to specified port
@@ -231,7 +242,7 @@ int main(int argc, char **argv)
 		struct sockaddr_in* desIP = Dns(acpt, realHost);
 
 		//transform data
-		doHTTP(client, server, &desIP, realReq);
+		doHTTP(client, server, &desIP, realReq, bufferSize[0]);
 
 		//Close connection
 		close(acpt);
