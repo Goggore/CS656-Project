@@ -84,19 +84,20 @@ struct sockaddr_in * Dns(int acpt, char* addr)
 void doParse(char* req, char* hostName, char* URL, int* buffSize)
 {
 	int getHostStart = -1, getURL = -1, getURLStart = -1;
+	int i = 0;
 
 	//Get real size of data
 	while (1)
 	{
-		if (req[buffSize[0]] == '\0')
+		if (req[i] == '\0')
 			break;
 
 		//GetURL
 		if (getURLStart > 0)
 		{
-			if (req[buffSize[0]] != ' ')
+			if (req[i] != ' ')
 			{
-				strncat(URL, &req[buffSize[0]], sizeof(char));
+				strncat(URL, &req[i], sizeof(char));
 				buffSize[2]++;
 			}
 			else
@@ -107,27 +108,27 @@ void doParse(char* req, char* hostName, char* URL, int* buffSize)
 			}
 		}
 
-		if (getURL < 0 && getURLStart < 0 && req[buffSize[0]] == ' ')
+		if (getURL < 0 && getURLStart < 0 && req[i] == ' ')
 			getURLStart = 1;
 
 		//Get Host
-		if (buffSize[0] > 5 &&
-			req[buffSize[0] - 6] == 'H' && req[buffSize[0] - 5] == 'o' && req[buffSize[0] - 4] == 's' &&
-			req[buffSize[0] - 3] == 't' && req[buffSize[0] - 2] == ':' && req[buffSize[0] - 1] == ' ')
+		if (i > 5 &&
+			req[i - 6] == 'H' && req[i - 5] == 'o' && req[i - 4] == 's' &&
+			req[i - 3] == 't' && req[i - 2] == ':' && req[i - 1] == ' ')
 			getHostStart = 1;
 
 		if (getHostStart > 0)
 		{
-			if (req[buffSize[0]] == '\r' || req[buffSize[0]] == ':')
+			if (req[i] == '\r' || req[i] == ':')
 				getHostStart = -1;
 			else
 			{
-				strncat(hostName, &req[buffSize[0]], sizeof(char));
+				strncat(hostName, &req[i], sizeof(char));
 				buffSize[1]++;
 			}
 		}
 
-		buffSize[0]++;
+		i++;
 	}
 
 	return;
@@ -136,12 +137,14 @@ void doParse(char* req, char* hostName, char* URL, int* buffSize)
 //Transfer data
 void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in wServ, int accept, char* req, int reqSize)
 {
-	char respBuff[20480];
+	char tempBuff[20480];
 	
 	//Create sock for connection with web server
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0)
 		exit(1);
+
+	printf("[5]\n");
 
 	//Connect with web server
 	struct sockaddr* temp = (struct sockaddr*)&wServ;
@@ -151,17 +154,28 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in
 		exit(1);
 	}
 
+	printf("[6]\n");
+
 	//Send request message to web server
 	if (send(sockfd, req, reqSize, 0) < 0)
 		exit(1);
 
-	//Receive respone message from web server
-	recv(sockfd, respBuff, sizeof(respBuff), 0);
+	printf("[7]\n");
 
-	//printf(respBuff);
+	//Receive respone message from web server
+	int respSize = recv(sockfd, tempBuff, sizeof(tempBuff), 0);
+	char* respBuff = (char*)malloc(sizeof(char) * respSize);
+	memcpy(respBuff, tempBuff, respSize);
+
+	//printf(tempBuff);
 
 	//Send respone message back to browser
-	send(accept, respBuff, sizeof(respBuff), 0);
+	if (send(accept, respBuff, respSize, 0) < 0)
+		exit(1);
+
+	printf("[8]\n");
+
+	free(respBuff);
 }
 
 int main(int argc, char **argv)
@@ -180,13 +194,19 @@ int main(int argc, char **argv)
 	if(sockfd < 0)
 		exit(1);
 
+	printf("[1]\n");
+
 	//Bind socket to address and port
 	if (bind(sockfd, (struct sockaddr*)&server, sizeof(struct sockaddr_in)) < 0)
 		exit(1);
 
+	printf("[2]\n");
+
 	//Begin to listen to specified port
 	if (listen(sockfd,3) < 0)
 		exit(1);
+
+	printf("[3]\n");
 
 	printf("stage 2 program by ss3889 listening on socket %s \n", argv[1]);
 		
@@ -197,6 +217,8 @@ int main(int argc, char **argv)
 		if (acpt < 0)
 			exit(1);
 
+		printf("[4]\n");
+
 		//init buffers
 		char reqBuff[2048] = "";
 		char URL[256] = "";
@@ -204,13 +226,10 @@ int main(int argc, char **argv)
 		int bufferSize[3] = {0,0,0};//reqSize, hostSize, urlSize
 
 		//Receive message from client
-		int reqSize = recv(acpt, reqBuff, sizeof(reqBuff), 0);
+		bufferSize[0] = recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
 		//parse request
 		doParse(reqBuff, host, URL, bufferSize);
-
-		printf("reqSize: %d \n", reqSize);
-		printf("bufferSize[0]: %d \n", bufferSize[0]);
 
 		char localMsg[256] = "REQ ";
 		strcat(localMsg, URL);
@@ -231,13 +250,15 @@ int main(int argc, char **argv)
 
 		//get prefered IP
 		struct sockaddr_in* desIP = Dns(acpt, realHost);
-		//desIP->sin_port = htons(80);
+		desIP->sin_port = htons(80);
 
 		//transform data
 		doHTTP(client, server, *desIP, acpt, realReq, bufferSize[0]);
 
 		//Close connection
 		close(acpt);
+		free(realHost);
+		free(realReq);
 	}
 	
 	close(sockfd);
