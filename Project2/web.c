@@ -59,6 +59,7 @@ struct sockaddr_in * Dns(int acpt, char* addr)
 		{
 			address = (struct sockaddr_in*)info.ai_addr;
 
+
 			int delay = GetDelay(info);//Calculate delay
 			if (delay >= 0)
 			{
@@ -133,55 +134,35 @@ void doParse(char* req, char* hostName, char* URL, int* buffSize)
 }
 
 //Transfer data
-void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in wServ, char* req, int reqSize)
+void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in wServ, int accept, char* req, int reqSize)
 {
+	char respBuff[20480];
+	
+	//Create sock for connection with web server
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0)
 		exit(1);
 
-	if (connect(sockfd, (struct sockaddr*)&wServ, sizeof((struct sockaddr*)&wServ)) < 0)
+	//Connect with web server
+	struct sockaddr* temp = (struct sockaddr*)&wServ;
+	if (connect(sockfd, temp, sizeof(*temp)) < 0)
 	{
 		close(sockfd);
 		exit(1);
 	}
 
+	//Send request message to web server
 	if (send(sockfd, req, reqSize, 0) < 0)
 		exit(1);
-}
-/**
-char* connectWebSever(sockaddr_in *ip, char *addr)
-{
-	//struct sockaddr_in net;
 
-	//net.sin_family = AF_INET;
-    //net.sin_port = htons( 80 );
-    //net.sin_addr.s_addr = inet_addr(addr);
-	//create socket to web server
-	if ((wsock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-	{
-		exit(1);
-	}
-	if (connect(wsock , (struct sockaddr *)&ip , sizeof(ip)) < 0)
-    {
-    	exit(1);
-    }
-    if( send(wsock, addr, strlen(addr), 0) < 0)
-    {
-    	exit(1);
-    }
+	//Receive respone message from web server
+	recv(sockfd, respBuff, sizeof(respBuff), 0);
 
-    char[65536] Buf;
-    if( recv(sock , Buf , 65536 , 0) < 0)
-    {
-    	exit(1);
-    }    
-    if(Buf[65535] == NULL)
-    {
-    	exit(1);
-    }
-return Buf;
+	//printf(respBuff);
+
+	//Send respone message back to browser
+	send(accept, respBuff, sizeof(respBuff), 0);
 }
-/**/
 
 int main(int argc, char **argv)
 {
@@ -223,14 +204,24 @@ int main(int argc, char **argv)
 		int bufferSize[3] = {0,0,0};//reqSize, hostSize, urlSize
 
 		//Receive message from client
-		recv(acpt, reqBuff, sizeof(reqBuff), 0);
+		int reqSize = recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
 		//parse request
 		doParse(reqBuff, host, URL, bufferSize);
 
+		printf("reqSize: %d \n", reqSize);
+		printf("bufferSize[0]: %d \n", bufferSize[0]);
+
 		char localMsg[256] = "REQ ";
 		strcat(localMsg, URL);
 		printf("%s \n", localMsg);
+
+		//Close connect if the size of request is larger than 65535 bytes
+		if (bufferSize[0] > 65535)
+		{
+			close(acpt);
+			continue;
+		}
 
 		//build buffer with real size
 		char* realHost = (char*)malloc(sizeof(char) * bufferSize[1]);
@@ -240,9 +231,10 @@ int main(int argc, char **argv)
 
 		//get prefered IP
 		struct sockaddr_in* desIP = Dns(acpt, realHost);
+		//desIP->sin_port = htons(80);
 
 		//transform data
-		doHTTP(client, server, &desIP, realReq, bufferSize[0]);
+		doHTTP(client, server, *desIP, acpt, realReq, bufferSize[0]);
 
 		//Close connection
 		close(acpt);
