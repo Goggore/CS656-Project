@@ -184,16 +184,11 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in
 int main(int argc, char **argv)
 {
 	//Open and import block list
-	char blkTempBuff[3072];
+	char blkBuff[3072];
 	int blkFileDes = open(argv[2], O_RDONLY);
-	int blkFileSize = read(blkFileDes, blkTempBuff, sizeof(blkTempBuff));
+	int blkFileSize = read(blkFileDes, blkBuff, sizeof(blkBuff));
 	
 	//Parse block list
-	int i = 0;
-	for (i; i < blkFileSize; i++)
-	{
-
-	}
 
 	struct sockaddr_in server, client;
 	int clientAddrLen = sizeof(client);
@@ -264,13 +259,62 @@ int main(int argc, char **argv)
 		memcpy(realReq, reqBuff, sizeof(char) * bufferSize[0]);
 
 		//Check block
+		int i = 0, match = -1, end = -1;
+		while (end < 0)
+		{
+			if (strncmp(&blkBuff[i], realHost, bufferSize[1]) == 0)
+			{
+				match = 1;
+				break;
+			}
+			else
+			{
+				for (i; i < blkFileSize; i++)
+				{
+					if (blkBuff[i] == '\n')
+					{
+						i++;
+						break;
+					}
+					if (blkBuff[i] == '\0')
+					{
+						end = 1;
+						break;
+					}
+				}
+			}
 
-		//Get prefered IP
-		struct sockaddr_in* desIP = Dns(acpt, realHost);
-		desIP->sin_port = htons(80);
+			printf("[11]\n");
+		}
 
-		//Transform data
-		doHTTP(client, server, *desIP, acpt, realReq, bufferSize[0]);
+		printf("[10]\n");
+
+		if (match > 0)
+		{
+			char blkMsg[256] = "HTTP/1.1 403 Forbidden\r\n";
+			time_t currentT;
+			time(&currentT);
+			strcat(blkMsg, "Date: ");
+			strcat(blkMsg, asctime(gmtime(&currentT)));
+			strcat(blkMsg, "GMT \r\n");
+			strcat(blkMsg, "Content-Type: text/html;charset=ISO-8859-1 \r\n");
+			strcat(blkMsg, "Content-Length: 0 \r\n");
+			strcat(blkMsg, "\r\n");
+
+			if (send(acpt, blkMsg, sizeof(blkMsg), 0) < 0)
+				exit(1);
+
+			printf("[9]\n");
+		}
+		else
+		{
+			//Get prefered IP
+			struct sockaddr_in* desIP = Dns(acpt, realHost);
+			desIP->sin_port = htons(80);
+
+			//Transform data
+			doHTTP(client, server, *desIP, acpt, realReq, bufferSize[0]);
+		}
 
 		//Close connection
 		close(acpt);
