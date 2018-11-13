@@ -5,12 +5,15 @@
 
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <time.h>
 #include <string.h>
+#include <fcntl.h>
 
 //Get time in microsecond
 long long GetTime()
@@ -167,7 +170,7 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in
 	char* respBuff = (char*)malloc(sizeof(char) * respSize);
 	memcpy(respBuff, tempBuff, respSize);
 
-	//printf(tempBuff);
+	//printf(respBuff);
 
 	//Send respone message back to browser
 	if (send(accept, respBuff, respSize, 0) < 0)
@@ -180,6 +183,18 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in
 
 int main(int argc, char **argv)
 {
+	//Open and import block list
+	char blkTempBuff[3072];
+	int blkFileDes = open(argv[2], O_RDONLY);
+	int blkFileSize = read(blkFileDes, blkTempBuff, sizeof(blkTempBuff));
+	
+	//Parse block list
+	int i = 0;
+	for (i; i < blkFileSize; i++)
+	{
+
+	}
+
 	struct sockaddr_in server, client;
 	int clientAddrLen = sizeof(client);
 	bzero(&server, sizeof(server));
@@ -219,7 +234,7 @@ int main(int argc, char **argv)
 
 		printf("[4]\n");
 
-		//init buffers
+		//Init buffers
 		char reqBuff[2048] = "";
 		char URL[256] = "";
 		char host[128] = "";
@@ -228,10 +243,10 @@ int main(int argc, char **argv)
 		//Receive message from client
 		bufferSize[0] = recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
-		//parse request
+		//Parse request
 		doParse(reqBuff, host, URL, bufferSize);
 
-		char localMsg[256] = "REQ ";
+		char localMsg[512] = "REQUEST: ";
 		strcat(localMsg, URL);
 		printf("%s \n", localMsg);
 
@@ -242,17 +257,19 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		//build buffer with real size
+		//Build buffer with real size
 		char* realHost = (char*)malloc(sizeof(char) * bufferSize[1]);
 		char* realReq = (char*)malloc(sizeof(char) * bufferSize[0]);
 		memcpy(realHost, host, sizeof(char) * bufferSize[1]);
 		memcpy(realReq, reqBuff, sizeof(char) * bufferSize[0]);
 
-		//get prefered IP
+		//Check block
+
+		//Get prefered IP
 		struct sockaddr_in* desIP = Dns(acpt, realHost);
 		desIP->sin_port = htons(80);
 
-		//transform data
+		//Transform data
 		doHTTP(client, server, *desIP, acpt, realReq, bufferSize[0]);
 
 		//Close connection
