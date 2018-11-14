@@ -84,7 +84,6 @@ void doParse(char* req, char* hostName, char* URL, int* buffSize)
 	int getHostStart = -1, getURL = -1, getURLStart = -1;
 	int i = 0;
 
-	//Get real size of data
 	while (1)
 	{
 		if (req[i] == '\0')
@@ -135,7 +134,7 @@ void doParse(char* req, char* hostName, char* URL, int* buffSize)
 //Transfer data
 void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct addrinfo wServ, int accept, char* req, int reqSize)
 {
-	int buffSize = sizeof(char) * 20971520;//20M for respone msg
+	int buffSize = sizeof(char) * 10485760;//10M for respone msg
 	char* tempBuff = (char*)malloc(buffSize);
 	
 	//Create sock for connection with web server
@@ -253,11 +252,12 @@ int main(int argc, char **argv)
 		}
 
 		//Build buffer with real size
+		bufferSize[1]++;
 		char* realHost = (char*)malloc(sizeof(char) * bufferSize[1]);
 		char* realReq = (char*)malloc(sizeof(char) * bufferSize[0]);
 		memcpy(realHost, host, sizeof(char) * bufferSize[1]);
+		realHost[bufferSize[1] - 1] = '\0';
 		memcpy(realReq, reqBuff, sizeof(char) * bufferSize[0]);
-		printf("Host: %s \n", realHost);
 
 		//Check block
 		int i = 0, match = -1, end = -1;
