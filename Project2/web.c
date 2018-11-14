@@ -206,97 +206,103 @@ int main(int argc, char **argv)
 		if (acpt < 0)
 			exit(1);
 
-		//Init buffers
-		char reqBuff[2048] = "";
-		char URL[256] = "";
-		char host[128] = "";
-		int bufferSize[3] = {0,0,0};//reqSize, hostSize, urlSize
-
-		//Receive message from client
-		bufferSize[0] = recv(acpt, reqBuff, sizeof(reqBuff), 0);
-
-		//Parse request
-		doParse(reqBuff, host, URL, bufferSize);
-
-		char localMsg[512] = "REQUEST: ";
-		strcat(localMsg, URL);
-		printf("%s \n", localMsg);
-
-		//Close connect if the size of request is larger than 65535 bytes
-		if (bufferSize[0] > 65535)
+		while (1)
 		{
-			close(acpt);
-			continue;
-		}
+			//Init buffers
+			char reqBuff[2048] = "";
+			char URL[256] = "";
+			char host[128] = "";
+			int bufferSize[3] = { 0,0,0 };//reqSize, hostSize, urlSize
 
-		//Build buffer with real size
-		bufferSize[1]++;
-		char* realHost = (char*)malloc(sizeof(char) * bufferSize[1]);
-		memcpy(realHost, host, sizeof(char) * bufferSize[1]);
-		realHost[bufferSize[1] - 1] = '\0';
+										  //Receive message from client
+			bufferSize[0] = recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
-		char* realReq = (char*)malloc(sizeof(char) * bufferSize[0]);
-		memcpy(realReq, reqBuff, sizeof(char) * bufferSize[0]);
-
-		//Check block
-		int i = 0, match = -1, end = -1;
-		while (end < 0)
-		{
-			if (strncmp(&blkBuff[i], realHost, bufferSize[1]-1) == 0)
-			{
-				match = 1;
-				end = 1;
+			if (bufferSize[0] < 0)
 				break;
-			}
-			else
+
+			//Parse request
+			doParse(reqBuff, host, URL, bufferSize);
+
+			char localMsg[512] = "REQUEST: ";
+			strcat(localMsg, URL);
+			printf("%s \n", localMsg);
+
+			//Close connect if the size of request is larger than 65535 bytes
+			if (bufferSize[0] > 65535)
 			{
-				for (i; i < blkFileSize; i++)
+				close(acpt);
+				continue;
+			}
+
+			//Build buffer with real size
+			bufferSize[1]++;
+			char* realHost = (char*)malloc(sizeof(char) * bufferSize[1]);
+			memcpy(realHost, host, sizeof(char) * bufferSize[1]);
+			realHost[bufferSize[1] - 1] = '\0';
+
+			char* realReq = (char*)malloc(sizeof(char) * bufferSize[0]);
+			memcpy(realReq, reqBuff, sizeof(char) * bufferSize[0]);
+
+			//Check block
+			int i = 0, match = -1, end = -1;
+			while (end < 0)
+			{
+				if (strncmp(&blkBuff[i], realHost, bufferSize[1] - 1) == 0)
 				{
-					if (blkBuff[i] == '\n')
+					match = 1;
+					end = 1;
+					break;
+				}
+				else
+				{
+					for (i; i < blkFileSize; i++)
 					{
-						i++;
-						break;
-					}
-					if (i == blkFileSize - 1)
-					{
-						end = 1;
-						break;
+						if (blkBuff[i] == '\n')
+						{
+							i++;
+							break;
+						}
+						if (i == blkFileSize - 1)
+						{
+							end = 1;
+							break;
+						}
 					}
 				}
 			}
+
+			if (match > 0)
+			{
+				char blkMsg[256] = "HTTP/1.1 403 Forbidden\r\n";
+				time_t currentT;
+				time(&currentT);
+				strcat(blkMsg, "Date: ");
+				strcat(blkMsg, asctime(gmtime(&currentT)));
+				strcat(blkMsg, "GMT \r\n");
+				strcat(blkMsg, "Content-Type: text/html;charset=ISO-8859-1 \r\n");
+				strcat(blkMsg, "Content-Length: 0 \r\n");
+				strcat(blkMsg, "\r\n");
+
+				if (send(acpt, blkMsg, sizeof(blkMsg), 0) < 0)
+					exit(1);
+			}
+			else
+			{
+				//Get prefered IP
+				struct addrinfo info = Dns(acpt, realHost);
+				struct sockaddr_in *desIP;
+				desIP = (struct sockaddr_in*)info.ai_addr;
+				desIP->sin_port = htons(80);
+
+				//Transform data
+				doHTTP(client, server, info, acpt, realReq, bufferSize[0]);
+			}
+
+			//Close connection
+			close(acpt);
+			free(realHost);
+			free(realReq);
 		}
-
-		if (match > 0)
-		{
-			char blkMsg[256] = "HTTP/1.1 403 Forbidden\r\n";
-			time_t currentT;
-			time(&currentT);
-			strcat(blkMsg, "Date: ");
-			strcat(blkMsg, asctime(gmtime(&currentT)));
-			strcat(blkMsg, "GMT \r\n");
-			strcat(blkMsg, "Content-Type: text/html;charset=ISO-8859-1 \r\n");
-			strcat(blkMsg, "Content-Length: 0 \r\n");
-			strcat(blkMsg, "\r\n");
-
-			if (send(acpt, blkMsg, sizeof(blkMsg), 0) < 0)
-				exit(1);
-		}
-		else
-		{
-			//Get prefered IP
-			struct addrinfo info = Dns(acpt, realHost);
-			struct sockaddr_in *desIP;
-			desIP = (struct sockaddr_in*)info.ai_addr;
-			desIP->sin_port = htons(80);
-
-			//Transform data
-			doHTTP(client, server, info, acpt, realReq, bufferSize[0]);
-		}
-
-		//Close connection
-		close(acpt);
-		free(realHost);
-		free(realReq);
 	}
 	
 	close(sockfd);
