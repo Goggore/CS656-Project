@@ -238,8 +238,12 @@ int main(int argc, char **argv)
 		//Receive message from client
 		bufferSize[0] = recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
+		printf("[12]\n");
+
 		//Parse request
 		doParse(reqBuff, host, URL, bufferSize);
+
+		printf("[13]\n");
 
 		char localMsg[512] = "REQUEST: ";
 		strcat(localMsg, URL);
@@ -265,6 +269,7 @@ int main(int argc, char **argv)
 			if (strncmp(&blkBuff[i], realHost, bufferSize[1]) == 0)
 			{
 				match = 1;
+				end = 1;
 				break;
 			}
 			else
@@ -276,7 +281,7 @@ int main(int argc, char **argv)
 						i++;
 						break;
 					}
-					if (blkBuff[i] == '\0')
+					if (i == blkFileSize - 1)
 					{
 						end = 1;
 						break;
