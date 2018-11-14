@@ -45,7 +45,7 @@ int GetDelay(struct addrinfo info)
 }
 
 //Get IP addresses 
-struct sockaddr_in * Dns(int acpt, char* addr)
+struct addrinfo Dns(int acpt, char* addr)
 {
 	struct addrinfo* infos;
 	struct addrinfo prefAddr;
@@ -62,7 +62,6 @@ struct sockaddr_in * Dns(int acpt, char* addr)
 		{
 			address = (struct sockaddr_in*)info.ai_addr;
 
-
 			int delay = GetDelay(info);//Calculate delay
 			if (delay >= 0)
 			{
@@ -75,12 +74,8 @@ struct sockaddr_in * Dns(int acpt, char* addr)
 			info = *info.ai_next;
 		}
 	}
-	
-	//Get preferred IP address by calculating the connection delay 
-	struct sockaddr_in *addrin;
-	addrin = (struct sockaddr_in*)prefAddr.ai_addr;
 		
-	return addrin;
+	return prefAddr;
 }
 
 //Scan and parse the browser request
@@ -138,9 +133,10 @@ void doParse(char* req, char* hostName, char* URL, int* buffSize)
 }
 
 //Transfer data
-void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in wServ, int accept, char* req, int reqSize)
+void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct addrinfo wServ, int accept, char* req, int reqSize)
 {
-	char tempBuff[20480];
+	int buffSize = sizeof(char) * 20971520;//20M for respone msg
+	char* tempBuff = (char*)malloc(buffSize);
 	
 	//Create sock for connection with web server
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -150,8 +146,7 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in
 	printf("[5]\n");
 
 	//Connect with web server
-	struct sockaddr* temp = (struct sockaddr*)&wServ;
-	if (connect(sockfd, temp, sizeof(*temp)) < 0)
+	if (connect(sockfd, wServ.ai_addr, wServ.ai_addrlen) < 0)
 	{
 		close(sockfd);
 		exit(1);
@@ -166,11 +161,12 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct sockaddr_in
 	printf("[7]\n");
 
 	//Receive respone message from web server
-	int respSize = recv(sockfd, tempBuff, sizeof(tempBuff), 0);
+	int respSize = recv(sockfd, tempBuff, buffSize, 0);
 	char* respBuff = (char*)malloc(sizeof(char) * respSize);
 	memcpy(respBuff, tempBuff, respSize);
+	free(tempBuff);
 
-	//printf(respBuff);
+	//printf("%s \n", respBuff);
 
 	//Send respone message back to browser
 	if (send(accept, respBuff, respSize, 0) < 0)
@@ -261,6 +257,7 @@ int main(int argc, char **argv)
 		char* realReq = (char*)malloc(sizeof(char) * bufferSize[0]);
 		memcpy(realHost, host, sizeof(char) * bufferSize[1]);
 		memcpy(realReq, reqBuff, sizeof(char) * bufferSize[0]);
+		printf("Host: %s \n", realHost);
 
 		//Check block
 		int i = 0, match = -1, end = -1;
@@ -296,6 +293,8 @@ int main(int argc, char **argv)
 
 		if (match > 0)
 		{
+			printf("[16]\n");
+
 			char blkMsg[256] = "HTTP/1.1 403 Forbidden\r\n";
 			time_t currentT;
 			time(&currentT);
@@ -314,11 +313,17 @@ int main(int argc, char **argv)
 		else
 		{
 			//Get prefered IP
-			struct sockaddr_in* desIP = Dns(acpt, realHost);
+			struct addrinfo info = Dns(acpt, realHost);
+			struct sockaddr_in *desIP;
+			desIP = (struct sockaddr_in*)info.ai_addr;
 			desIP->sin_port = htons(80);
 
+			printf("[14]\n");
+
 			//Transform data
-			doHTTP(client, server, *desIP, acpt, realReq, bufferSize[0]);
+			doHTTP(client, server, info, acpt, realReq, bufferSize[0]);
+
+			printf("[15]\n");
 		}
 
 		//Close connection
