@@ -142,8 +142,6 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct addrinfo wS
 	if (sockfd < 0)
 		exit(1);
 
-	printf("[5]\n");
-
 	//Connect with web server
 	if (connect(sockfd, wServ.ai_addr, wServ.ai_addrlen) < 0)
 	{
@@ -151,13 +149,9 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct addrinfo wS
 		exit(1);
 	}
 
-	printf("[6]\n");
-
 	//Send request message to web server
 	if (send(sockfd, req, reqSize, 0) < 0)
 		exit(1);
-
-	printf("[7]\n");
 
 	//Receive respone message from web server
 	int respSize = recv(sockfd, tempBuff, buffSize, 0);
@@ -165,13 +159,9 @@ void doHTTP(struct sockaddr_in brw, struct sockaddr_in pServ, struct addrinfo wS
 	memcpy(respBuff, tempBuff, respSize);
 	free(tempBuff);
 
-	//printf("%s \n", respBuff);
-
 	//Send respone message back to browser
 	if (send(accept, respBuff, respSize, 0) < 0)
 		exit(1);
-
-	printf("[8]\n");
 
 	free(respBuff);
 }
@@ -199,19 +189,13 @@ int main(int argc, char **argv)
 	if(sockfd < 0)
 		exit(1);
 
-	printf("[1]\n");
-
 	//Bind socket to address and port
 	if (bind(sockfd, (struct sockaddr*)&server, sizeof(struct sockaddr_in)) < 0)
 		exit(1);
 
-	printf("[2]\n");
-
 	//Begin to listen to specified port
 	if (listen(sockfd,3) < 0)
 		exit(1);
-
-	printf("[3]\n");
 
 	printf("stage 2 program by ss3889 listening on socket %s \n", argv[1]);
 		
@@ -222,8 +206,6 @@ int main(int argc, char **argv)
 		if (acpt < 0)
 			exit(1);
 
-		printf("[4]\n");
-
 		//Init buffers
 		char reqBuff[2048] = "";
 		char URL[256] = "";
@@ -233,12 +215,8 @@ int main(int argc, char **argv)
 		//Receive message from client
 		bufferSize[0] = recv(acpt, reqBuff, sizeof(reqBuff), 0);
 
-		printf("[12]\n");
-
 		//Parse request
 		doParse(reqBuff, host, URL, bufferSize);
-
-		printf("[13]\n");
 
 		char localMsg[512] = "REQUEST: ";
 		strcat(localMsg, URL);
@@ -254,9 +232,10 @@ int main(int argc, char **argv)
 		//Build buffer with real size
 		bufferSize[1]++;
 		char* realHost = (char*)malloc(sizeof(char) * bufferSize[1]);
-		char* realReq = (char*)malloc(sizeof(char) * bufferSize[0]);
 		memcpy(realHost, host, sizeof(char) * bufferSize[1]);
 		realHost[bufferSize[1] - 1] = '\0';
+
+		char* realReq = (char*)malloc(sizeof(char) * bufferSize[0]);
 		memcpy(realReq, reqBuff, sizeof(char) * bufferSize[0]);
 
 		//Check block
@@ -285,16 +264,10 @@ int main(int argc, char **argv)
 					}
 				}
 			}
-
-			printf("[11]\n");
 		}
-
-		printf("[10]\n");
 
 		if (match > 0)
 		{
-			printf("[16]\n");
-
 			char blkMsg[256] = "HTTP/1.1 403 Forbidden\r\n";
 			time_t currentT;
 			time(&currentT);
@@ -307,8 +280,6 @@ int main(int argc, char **argv)
 
 			if (send(acpt, blkMsg, sizeof(blkMsg), 0) < 0)
 				exit(1);
-
-			printf("[9]\n");
 		}
 		else
 		{
@@ -318,12 +289,8 @@ int main(int argc, char **argv)
 			desIP = (struct sockaddr_in*)info.ai_addr;
 			desIP->sin_port = htons(80);
 
-			printf("[14]\n");
-
 			//Transform data
 			doHTTP(client, server, info, acpt, realReq, bufferSize[0]);
-
-			printf("[15]\n");
 		}
 
 		//Close connection
