@@ -242,7 +242,7 @@ int main(int argc, char **argv)
 		int i = 0, match = -1, end = -1;
 		while (end < 0)
 		{
-			if (strncmp(&blkBuff[i], realHost, bufferSize[1]) == 0)
+			if (strncmp(&blkBuff[i], realHost, bufferSize[1]-1) == 0)
 			{
 				match = 1;
 				end = 1;
